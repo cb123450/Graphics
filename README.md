@@ -1,6 +1,6 @@
 # Graphics
 
-I created a 3D animation of a "celestial" watch using a combination of ray tracing, triangle meshes, and 3D rotation matrices. The inspiration from it comes from this watch (https://www.thewatchpages.com/watches/van-cleef-arpels-midnight-planetarium-watch-vcaro4j000/). 
+I created a 3D animation of a "celestial" watch using a combination of ray tracing, triangle meshes, and 3D rotation matrices. The inspiration for it comes from this watch (https://www.thewatchpages.com/watches/van-cleef-arpels-midnight-planetarium-watch-vcaro4j000/). 
 
 The code for my final project for Computer Graphics (CSCI 371) is in `final_project.cpp`. It needs the `cow.cpp` and `snail.cpp` to run. `cow.cpp` wraps GLFW (a library for OpenGL) and `snail.cpp` is a small linear algebra library. Both were created by Jim Bern who taught CSCI 371. 
 
