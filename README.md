@@ -1,4 +1,4 @@
-# Graphics
+# Graphics Final Project
 
 I created a 3D animation of a "celestial" watch using a combination of ray tracing, triangle meshes, and 3D rotation matrices. The inspiration for it comes from this watch (https://www.thewatchpages.com/watches/van-cleef-arpels-midnight-planetarium-watch-vcaro4j000/). 
 
