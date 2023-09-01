@@ -60,11 +60,13 @@ char *final_frag = R""""(
     vec3 sun_position = light_position; 
     float sun_radius = planet_radii[0][0];
 
+    //For shading!
     vec3 normal_to_sphere(vec3 p, float sphere_radius){
         //see https://michaelwalczyk.com/blog-ray-marching.html
         const vec3 epsilon = vec3(0.001, 0.0, 0.0);
 
         //get gradient at point 
+        //swizzling
         float x_gradient = sdSphere(p+epsilon.xyy, sphere_radius) - sdSphere(p-epsilon.xyy, sphere_radius);
         float y_gradient = sdSphere(p+epsilon.yxy, sphere_radius) - sdSphere(p-epsilon.yxy, sphere_radius);
         float z_gradient = sdSphere(p+epsilon.yyx, sphere_radius) - sdSphere(p-epsilon.yyx, sphere_radius);
@@ -73,12 +75,15 @@ char *final_frag = R""""(
 
         return normalize(normal);
     }
+
+    //For shading!
     vec3 normal_to_torus(vec3 p, vec2 t){
         /*see https://www.shadertoy.com/view/ll33Wn but it is essentially the same as finding 
         the normal to a sphere; just get the gradient to a point on the sphere */
         const vec3 epsilon = vec3(0.001, 0.0, 0.0);
 
         //get gradient at point 
+        //swizzling
         float x_gradient = sdTorus(p+epsilon.xyy, t) - sdTorus(p-epsilon.xyy, t);
         float y_gradient = sdTorus(p+epsilon.yxy, t) - sdTorus(p-epsilon.yxy, t);
         float z_gradient = sdTorus(p+epsilon.yyx, t) - sdTorus(p-epsilon.yyx, t);
@@ -91,6 +96,9 @@ char *final_frag = R""""(
     
     //for shadows, march from the planet to the sun
     //1 if hit a planet or an asteroid and 0 if do not hit a planet
+    //SHOULD BE USING DISTANCE-AIDED RAY MARCHING AND INCREMENT
+    //'total_distance_marched' by the distance to the closest object each time
+
     int march_from_planet_to_sun(vec3 start, vec3 dir, int index){
 
         const int MAX_STEPS = 64;
@@ -434,6 +442,7 @@ char *final_frag = R""""(
 
                 //WATCH RING
                 {
+                    //rotate torus to align it with rest of watch
                     mat3 rot_x = mat3(1, 0, 0,
                                         0, cos(3.14/2.0), -sin(3.14/2.0),
                                         0, sin(3.14/2.0), cos(3.14/2.0) );
@@ -576,12 +585,9 @@ char *final_frag = R""""(
                 ds -= vec2(iResolution.x / 2, iResolution.y / 2);
                 ds *= _R * 2. / iResolution.y;
             }
-            // vec3 p_world = o_renderer - z_renderer + dx * x_renderer + dy * y_renderer;
-            // dir = p_world - o_renderer;
             dir = -z_renderer + ds.x * x_renderer + ds.y * y_renderer;
         }
         
-        //float glow = 0;
         vec4 col = march(o, dir);
 
         //call separate glow function to make code easier to follow and 
@@ -677,17 +683,17 @@ void finalproject() {
 
     float distance_from_origin = 0.0;
     int index = 0;
-    double inner_radius = 0;
-    double outer_radius = 0;
+    double inner_aster_radius = 0;
+    double outer_aster_radius = 0;
 
     for (int i = 0; i < num_planets/3; i++){
         for (int k = 0; k < num_planets/3; k++){
             planet_positions[index] = V3(distance_from_origin, 0.0, 0.0);
             distance_from_origin += planet_radii[i][k] + 1.25;
             if (index == 3){
-                inner_radius = distance_from_origin;
+                inner_aster_radius = distance_from_origin;
                 distance_from_origin += 2.5;
-                outer_radius = distance_from_origin;
+                outer_aster_radius = distance_from_origin;
                 distance_from_origin += .5;
             }
             index += 1;
@@ -725,15 +731,19 @@ void finalproject() {
 
     float asteroid_radius = .1;
 
-    double step = (outer_radius-inner_radius)/3.0;
+    //3 concentric circles of asteroids
+    double separation = (outer_aster_radius-inner_aster_radius)/3.0;
+
     double change_theta = 2*3.1415926/16;
     double start_theta[3] = {0, 4/3.14, 2/3.14}; 
     for (int i = 0; i < 16; i++){
-        double start = inner_radius; 
+        double start = inner_aster_radius; 
         for (int k = 0; k < 3; k++){
             asteroid_positions_hom[3*i+k] = RotationZ(start_theta[k])*V4(start, 0.0, 0.0, 1.0);
             //need homogenous coordinates to rotate
-            start += step;
+            start += separation;
+
+            //rotate a little so 3 asteroids are not all on the same line
             start_theta[k] += change_theta; 
         }
     }
@@ -773,7 +783,6 @@ void finalproject() {
 
     
     //a triangle soup mesh and organize counterclockwise
-    //vec4* big_dipper_triangle_mesh = (vec4*) calloc(3*2, sizeof(vec4));
     const int big_dipper_mesh_vertices = 6;
     vec4 big_dipper_triangle_mesh[big_dipper_mesh_vertices] = {
                                 big_dipper[0], big_dipper[3], big_dipper[1],
@@ -994,11 +1003,9 @@ void finalproject() {
     green_tri_min_mesh[3] = red_tri_min_mesh[14*3+2];
     green_tri_min_mesh[4] = blue_tri_min_mesh[14*3+1];
     green_tri_min_mesh[5] = clock_hand_trans*V4(0.0, 18.0, 0.0, 1.0);
-    //vec4 clock_green_tri_mesh[3*num_clock_green_tri] = {clock_hand_trans*V4(0.0, 0.0, 0.0, 1.0), clock_blue_tri_mesh[0], clock_red_tri_mesh[0], 
-                                                        //clock_red_tri_mesh[14*3+2], clock_blue_tri_mesh[14*3+1], clock_hand_trans*V4(0.0, 18.0, 0.0, 1.0)};
     //end green triangles
 
-    //make hour hand
+    //make hour hand and apply transformations to it
     mat4 hour_hand_trans = Scaling(1.0, .5, 1.0); //make hour hand smaller
     mat4 depth_trans = Translation(0.0, 0.0, -.1);
 
@@ -1053,6 +1060,7 @@ void finalproject() {
         background_stars[i] = V4(x, y, -5.0, 1.0);
     }
 
+    //BEGIN ANIMATION
     while (begin_frame()) {
         camera_move(&renderer);
             
@@ -1141,9 +1149,12 @@ void finalproject() {
             }
 
             if (playing){
+                //CLAMP RESTRICTS SPEED TO BETWEEN 0 and 50
                 first = true;
+
+                // draw hour hand
                 hour_hand_rot = RotationZ((-time/(30.0*60.0))*(CLAMP(speed, 0, 50))); 
-                minute_hand_rot = RotationZ((-time/30.0)*(CLAMP(speed, 0, 50))); 
+                
 
                 for (int i = 0; i < num_clock_red_tri*3; i++){
                     rot_red_tri_hour[i] = hour_hand_rot*red_tri_hour_mesh[i];
@@ -1163,9 +1174,10 @@ void finalproject() {
                     rot_hour_hand[i] = hour_hand_rot*hour_hand[i];
                 } 
 
+                //draw minute hand
+                minute_hand_rot = RotationZ((-time/30.0)*(CLAMP(speed, 0, 50))); 
                 basic_draw(GL_LINES, P*V, min_hand_vert*2, rot_hour_hand, monokai.white);
 
-                //minute hand
                 for (int i = 0; i < num_clock_red_tri*3; i++){
                     rot_red_tri_min[i] = minute_hand_rot*red_tri_min_mesh[i];
                 } 
@@ -1187,7 +1199,7 @@ void finalproject() {
                 basic_draw(GL_LINES, P*V, min_hand_vert*2, rot_min_hand, monokai.white);
             }
             else{
-
+                //do not apply rotation matrices if not playing
                 basic_draw(GL_TRIANGLES, P*V, num_clock_red_tri*3, rot_red_tri_hour, monokai.red);
                 basic_draw(GL_TRIANGLES, P*V, num_clock_red_tri*3, rot_blue_tri_hour, monokai.blue);
                 basic_draw(GL_TRIANGLES, P*V, num_clock_green_tri*3, rot_green_tri_hour, monokai.green);
@@ -1199,6 +1211,7 @@ void finalproject() {
                 basic_draw(GL_LINES, P*V, min_hand_vert*2, rot_min_hand, monokai.white);
             }
 
+            //draw numbers
             double step = 2*3.1415926/24.0;
             vec2 start = V2(planet_positions[0].x, planet_positions[0].y) + V2(0, screen_height_world+1.);
 
@@ -1229,7 +1242,8 @@ void finalproject() {
             glBufferData(GL_ELEMENT_ARRAY_BUFFER, 3 * num_triangles * sizeof(int), triangle_indices, GL_DYNAMIC_DRAW);
 
             shader_set_uniform_vec2(shader_program, "iResolution", window_get_dimensions_in_pixels());
-            {
+            {   
+                //set time variable in shader
                 shader_set_uniform_double(shader_program, "time", time);
 
                 shader_set_uniform_double(shader_program, "renderer_angle_of_view", renderer.angle_of_view);
@@ -1239,11 +1253,13 @@ void finalproject() {
                 
                 vec3* planet_change_theta = (vec3*) calloc(1+ num_planets/3, sizeof(vec3));
 
+                //adjust speed 
                 planet_change_theta[0] = planet_change_theta_orig[0]*speed;
                 planet_change_theta[1] = planet_change_theta_orig[1]*speed;
                 planet_change_theta[2] = planet_change_theta_orig[2]*speed;
                 planet_change_theta[3] = planet_change_theta_orig[3]*speed;
 
+                //set variables inside of fragment shader
                 shader_set_uniform_vec3(shader_program, "x_renderer", x_renderer);
                 shader_set_uniform_vec3(shader_program, "y_renderer", y_renderer);
                 shader_set_uniform_vec3(shader_program, "z_renderer", z_renderer);
